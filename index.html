@@ -1,0 +1,828 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grade Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- PWA Manifest Link -->
+    <link rel="manifest" href="manifest.json">
+    <!-- Theme color for browser UI -->
+    <meta name="theme-color" content="#1d4ed8">
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 50;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.5);
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-content {
+            background-color: #ffffff;
+            margin: auto;
+            padding: 24px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 500px;
+            position: relative;
+        }
+        .modal.flex {
+            display: flex;
+        }
+        .close-button {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            cursor: pointer;
+            color: #9ca3af;
+        }
+         .close-button:hover {
+            color: #1f2937;
+        }
+
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            border-left-color: #09f;
+            animation: spin 1s ease infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 12px 24px;
+            background-color: #1f2937;
+            color: white;
+            border-radius: 8px;
+            z-index: 100;
+            opacity: 0;
+            transition: opacity 0.3s, bottom 0.3s;
+        }
+        .toast.show {
+            opacity: 1;
+            bottom: 30px;
+        }
+        .collapsible-wrapper {
+            display: grid;
+            grid-template-rows: 0fr;
+            transition: grid-template-rows 0.3s ease-in-out;
+        }
+        .collapsible-wrapper.expanded {
+            grid-template-rows: 1fr;
+        }
+        .collapsible-content {
+            overflow: hidden;
+        }
+    </style>
+</head>
+<body class="antialiased">
+    <div id="app" class="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
+        <div id="loading" class="fixed inset-0 bg-white flex items-center justify-center z-[100]">
+            <div class="spinner"></div>
+        </div>
+
+        <header class="mb-8">
+            <h1 class="text-4xl font-bold text-gray-800">Grade Tracker</h1>
+            <p class="text-gray-600 mt-1">Your personal dashboard for academic progress.</p>
+            <div id="overall-gpa-container" class="mt-4 p-4 bg-white rounded-lg shadow-md">
+                 <h2 class="text-xl font-semibold text-gray-700">Overall GPA: <span id="overall-gpa" class="text-blue-600">N/A</span></h2>
+            </div>
+        </header>
+
+        <main id="semesters-container">
+            <!-- Semesters will be dynamically inserted here -->
+        </main>
+
+        <div class="mt-8 text-center">
+            <button id="add-semester-btn" class="bg-blue-600 text-white font-semibold py-2 px-6 rounded-lg shadow-md hover:bg-blue-700 transition-colors">
+                Add Semester
+            </button>
+        </div>
+    </div>
+
+    <!-- Add Semester Modal -->
+    <div id="add-semester-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-button" onclick="closeModal('add-semester-modal')">&times;</span>
+            <h2 class="text-2xl font-bold mb-4">Add a New Semester</h2>
+            <form id="add-semester-form">
+                <input type="text" id="semester-name" placeholder="e.g., Fall 2025" class="w-full border border-gray-300 p-2 rounded-lg" required>
+                <div class="mt-6 flex justify-end">
+                    <button type="button" class="text-gray-600 mr-4" onclick="closeModal('add-semester-modal')">Cancel</button>
+                    <button type="submit" class="bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg">Add Semester</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Course Modal -->
+    <div id="add-course-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-button" onclick="closeModal('add-course-modal')">&times;</span>
+            <h2 class="text-2xl font-bold mb-4">Add a New Course</h2>
+            <form id="add-course-form">
+                <input type="hidden" id="course-semester-id">
+                <input type="text" id="course-name" placeholder="e.g., Computer Science 101" class="w-full border border-gray-300 p-2 rounded-lg" required>
+                <div class="mt-6 flex justify-end">
+                    <button type="button" class="text-gray-600 mr-4" onclick="closeModal('add-course-modal')">Cancel</button>
+                    <button type="submit" class="bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg">Add Course</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Bin Modal -->
+    <div id="add-bin-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-button" onclick="closeModal('add-bin-modal')">&times;</span>
+            <h2 class="text-2xl font-bold mb-4">Add Grading Bin</h2>
+            <form id="add-bin-form">
+                <input type="hidden" id="bin-course-id">
+                <input type="text" id="bin-name" placeholder="e.g., Exams" class="w-full border border-gray-300 p-2 rounded-lg mb-4" required>
+                <input type="number" id="bin-weight" placeholder="Weight (%)" min="1" max="100" class="w-full border border-gray-300 p-2 rounded-lg" required>
+                <p id="bin-weight-warning" class="text-red-500 text-sm mt-2 hidden"></p>
+                <div class="mt-6 flex justify-end">
+                    <button type="button" class="text-gray-600 mr-4" onclick="closeModal('add-bin-modal')">Cancel</button>
+                    <button type="submit" class="bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg">Add Bin</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Part Modal -->
+    <div id="add-part-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-button" onclick="closeModal('add-part-modal')">&times;</span>
+            <h2 class="text-2xl font-bold mb-4">Add Graded Part</h2>
+            <form id="add-part-form">
+                <input type="hidden" id="part-bin-id">
+                <input type="text" id="part-name" placeholder="e.g., Midterm 1" class="w-full border border-gray-300 p-2 rounded-lg mb-4" required>
+                <div class="flex space-x-4">
+                    <input type="number" id="part-score" placeholder="Your Score" step="0.01" class="w-1/2 border border-gray-300 p-2 rounded-lg" required>
+                    <input type="number" id="part-total" placeholder="Out of" step="0.01" class="w-1/2 border border-gray-300 p-2 rounded-lg" required>
+                </div>
+                <div class="mt-6 flex justify-end">
+                    <button type="button" class="text-gray-600 mr-4" onclick="closeModal('add-part-modal')">Cancel</button>
+                    <button type="submit" class="bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg">Add Part</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Gemini AI Modal -->
+    <div id="gemini-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-button" onclick="closeModal('gemini-modal')">&times;</span>
+            <h2 id="gemini-modal-title" class="text-2xl font-bold mb-4">✨ AI Assistant</h2>
+            <div id="gemini-modal-body">
+                <div id="gemini-spinner" class="flex justify-center items-center h-32">
+                    <div class="spinner"></div>
+                </div>
+                <div id="gemini-content" class="text-gray-700 whitespace-pre-wrap prose"></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Toast Notification -->
+    <div id="toast" class="toast"></div>
+
+    <script>
+        // PWA Service Worker Registration
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js').then(registration => {
+                    console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                }, err => {
+                    console.log('ServiceWorker registration failed: ', err);
+                });
+            });
+        }
+    </script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, collection, addDoc, onSnapshot, writeBatch, deleteDoc, getDocs, query, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- Firebase Configuration ---
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : { apiKey: "your-api-key", authDomain: "your-auth-domain", projectId: "your-project-id" };
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-grade-tracker';
+        
+        // --- Firebase Initialization ---
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        let userId = null;
+        let state = {
+            semesters: {},
+            courses: {},
+            bins: {},
+            parts: {}
+        };
+
+        // --- UI Elements ---
+        const loadingSpinner = document.getElementById('loading');
+        const semestersContainer = document.getElementById('semesters-container');
+
+        // --- Modals ---
+        const addSemesterModal = document.getElementById('add-semester-modal');
+        const addCourseModal = document.getElementById('add-course-modal');
+        const addBinModal = document.getElementById('add-bin-modal');
+        const addPartModal = document.getElementById('add-part-modal');
+        const geminiModal = document.getElementById('gemini-modal');
+
+        // --- Forms ---
+        const addSemesterForm = document.getElementById('add-semester-form');
+        const addCourseForm = document.getElementById('add-course-form');
+        const addBinForm = document.getElementById('add-bin-form');
+        const addPartForm = document.getElementById('add-part-form');
+        
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.classList.add('show');
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }
+
+        // --- Modal Logic ---
+        window.openModal = function(modalId, context = {}) {
+            const modal = document.getElementById(modalId);
+            if (!modal) return;
+            
+            if (modalId === 'add-course-modal') {
+                document.getElementById('course-semester-id').value = context.semesterId;
+            } else if (modalId === 'add-bin-modal') {
+                document.getElementById('bin-course-id').value = context.courseId;
+                const courseBins = Object.values(state.bins).filter(b => b.courseId === context.courseId);
+                const currentWeight = courseBins.reduce((acc, b) => acc + b.weight, 0);
+                const remainingWeight = 100 - currentWeight;
+                const warning = document.getElementById('bin-weight-warning');
+                if(remainingWeight > 0) {
+                     warning.textContent = `${remainingWeight}% remaining weight for this course.`;
+                     warning.classList.remove('hidden');
+                } else {
+                     warning.classList.add('hidden');
+                }
+               
+            } else if (modalId === 'add-part-modal') {
+                document.getElementById('part-bin-id').value = context.binId;
+            }
+            modal.classList.add('flex');
+        }
+
+        window.closeModal = function(modalId) {
+            const modal = document.getElementById(modalId);
+             if (modal) {
+                modal.classList.remove('flex');
+                const form = modal.querySelector('form');
+                if (form) form.reset();
+                 const warning = modal.querySelector('.text-red-500');
+                if (warning) warning.classList.add('hidden');
+                
+                if (modalId === 'gemini-modal') {
+                    document.getElementById('gemini-content').textContent = '';
+                    document.getElementById('gemini-spinner').style.display = 'flex';
+                }
+            }
+        }
+        
+        window.toggleCollapse = function(wrapperId, iconId) {
+            const wrapper = document.getElementById(wrapperId);
+            const icon = document.getElementById(iconId);
+            if(wrapper && icon) {
+                wrapper.classList.toggle('expanded');
+                icon.classList.toggle('rotate-180');
+            }
+        }
+
+        document.getElementById('add-semester-btn').addEventListener('click', () => openModal('add-semester-modal'));
+
+
+        // --- Data Handling ---
+
+        addSemesterForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const semesterName = document.getElementById('semester-name').value.trim();
+            if (!semesterName) return;
+            try {
+                const docRef = doc(collection(db, `artifacts/${appId}/users/${userId}/semesters`));
+                await setDoc(docRef, { name: semesterName, createdAt: new Date() });
+                closeModal('add-semester-modal');
+                showToast("Semester added!");
+            } catch (error) {
+                console.error("Error adding semester: ", error);
+                showToast("Error: Could not add semester.");
+            }
+        });
+
+        addCourseForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const courseName = document.getElementById('course-name').value.trim();
+            const semesterId = document.getElementById('course-semester-id').value;
+            if (!courseName || !semesterId) return;
+
+            try {
+                const docRef = doc(collection(db, `artifacts/${appId}/users/${userId}/courses`));
+                await setDoc(docRef, { name: courseName, semesterId: semesterId });
+                closeModal('add-course-modal');
+                showToast("Course added!");
+            } catch (error) {
+                console.error("Error adding course: ", error);
+                 showToast("Error: Could not add course.");
+            }
+        });
+
+        addBinForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const binName = document.getElementById('bin-name').value.trim();
+            const binWeight = parseFloat(document.getElementById('bin-weight').value);
+            const courseId = document.getElementById('bin-course-id').value;
+            if (!binName || !binWeight || !courseId) return;
+            
+            const courseBins = Object.values(state.bins).filter(b => b.courseId === courseId);
+            const currentWeight = courseBins.reduce((acc, b) => acc + b.weight, 0);
+
+            if (currentWeight + binWeight > 100) {
+                 document.getElementById('bin-weight-warning').textContent = `Adding this bin would exceed 100%. Total weight cannot be more than ${100 - currentWeight}%.`;
+                 document.getElementById('bin-weight-warning').classList.remove('hidden');
+                return;
+            }
+
+            try {
+                 const docRef = doc(collection(db, `artifacts/${appId}/users/${userId}/bins`));
+                 await setDoc(docRef, { name: binName, weight: binWeight, courseId: courseId });
+                 closeModal('add-bin-modal');
+                 showToast("Bin added!");
+            } catch (error) {
+                console.error("Error adding bin: ", error);
+                showToast("Error: Could not add bin.");
+            }
+        });
+
+        addPartForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const partName = document.getElementById('part-name').value.trim();
+            const partScore = parseFloat(document.getElementById('part-score').value);
+            const partTotal = parseFloat(document.getElementById('part-total').value);
+            const binId = document.getElementById('part-bin-id').value;
+
+            if (!partName || isNaN(partScore) || isNaN(partTotal) || !binId || partTotal <= 0) {
+                 showToast("Please fill all fields correctly.");
+                 return;
+            }
+             if (partScore > partTotal) {
+                showToast("Score cannot be greater than the total.");
+                return;
+            }
+            
+            try {
+                const docRef = doc(collection(db, `artifacts/${appId}/users/${userId}/parts`));
+                await setDoc(docRef, { name: partName, score: partScore, total: partTotal, binId: binId });
+                closeModal('add-part-modal');
+                showToast("Part added!");
+            } catch (error) {
+                console.error("Error adding part: ", error);
+                showToast("Error: Could not add part.");
+            }
+        });
+        
+        window.deleteItem = async function(type, id) {
+             if (!confirm(`Are you sure you want to delete this ${type}? This will also delete all related items.`)) return;
+             const batch = writeBatch(db);
+             
+             try {
+                if(type === 'semester') {
+                    const semesterRef = doc(db, `artifacts/${appId}/users/${userId}/semesters`, id);
+                    batch.delete(semesterRef);
+                    const coursesToDelete = Object.values(state.courses).filter(c => c.semesterId === id);
+                    for (const course of coursesToDelete) {
+                       await deleteItem('course', course.id); // Recursive delete
+                    }
+                } else if(type === 'course') {
+                    const courseRef = doc(db, `artifacts/${appId}/users/${userId}/courses`, id);
+                    batch.delete(courseRef);
+                    const binsToDelete = Object.values(state.bins).filter(b => b.courseId === id);
+                    for (const bin of binsToDelete) {
+                       await deleteItem('bin', bin.id); // Recursive delete
+                    }
+                } else if(type === 'bin') {
+                     const binRef = doc(db, `artifacts/${appId}/users/${userId}/bins`, id);
+                     batch.delete(binRef);
+                     const partsToDelete = Object.values(state.parts).filter(p => p.binId === id);
+                     partsToDelete.forEach(part => {
+                        const partRef = doc(db, `artifacts/${appId}/users/${userId}/parts`, part.id);
+                        batch.delete(partRef);
+                     });
+                } else if (type === 'part') {
+                     const partRef = doc(db, `artifacts/${appId}/users/${userId}/parts`, id);
+                     batch.delete(partRef);
+                }
+
+                await batch.commit();
+                showToast(`${type.charAt(0).toUpperCase() + type.slice(1)} deleted successfully.`);
+            } catch (error) {
+                console.error(`Error deleting ${type}: `, error);
+                showToast(`Error: Could not delete ${type}.`);
+            }
+        }
+
+        // --- Gemini AI Integration ---
+        const apiKey = ""; 
+
+        async function callGeminiAPI(prompt) {
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
+            const payload = {
+                contents: [{ parts: [{ text: prompt }] }],
+            };
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    const errorBody = await response.text();
+                    console.error("API Error Response:", errorBody);
+                    return `Error: Received status ${response.status} from the API.`;
+                }
+
+                const result = await response.json();
+                const candidate = result.candidates?.[0];
+
+                if (candidate && candidate.content?.parts?.[0]?.text) {
+                    return candidate.content.parts[0].text;
+                } else {
+                    console.error("Unexpected API response structure:", JSON.stringify(result, null, 2));
+                    return "Sorry, I couldn't get a response. The API returned an unexpected format.";
+                }
+            } catch (error) {
+                console.error('Error calling Gemini API:', error);
+                return "An error occurred while contacting the AI assistant. Please check the console for details.";
+            }
+        }
+        
+        window.generateStudyPlan = async function(courseId) {
+            const course = state.courses[courseId];
+            if (!course) return;
+
+            openModal('gemini-modal');
+            document.getElementById('gemini-modal-title').textContent = `✨ Study Plan for ${course.name}`;
+            document.getElementById('gemini-spinner').style.display = 'flex';
+            document.getElementById('gemini-content').innerHTML = '';
+
+            const courseBins = Object.values(state.bins).filter(b => b.courseId === courseId);
+            let gradeDetails = "";
+            const { binAverages } = calculateGrades();
+
+            if(courseBins.length === 0) {
+                gradeDetails = "No graded items have been entered for this course yet.";
+            } else {
+                 courseBins.forEach(bin => {
+                    gradeDetails += `\n- ${bin.name} (Weight: ${bin.weight}%):`;
+                    const binParts = Object.values(state.parts).filter(p => p.binId === bin.id);
+                    if (binParts.length > 0) {
+                         const binAvg = binAverages[bin.id];
+                         gradeDetails += ` Current Average: ${binAvg !== null ? binAvg.toFixed(1) + '%' : 'N/A'}\n`;
+                         binParts.forEach(part => {
+                             gradeDetails += `  - ${part.name}: ${part.score}/${part.total} (${((part.score/part.total)*100).toFixed(1)}%)\n`;
+                         });
+                    } else {
+                        gradeDetails += " No assignments recorded yet.\n";
+                    }
+                });
+            }
+
+            const prompt = `
+                You are an expert academic advisor AI. A student needs help creating a study plan for their course: "${course.name}".
+
+                Here is their current performance breakdown:
+                ${gradeDetails}
+
+                Based on this information, generate a concise and actionable 1-week study plan to help them improve.
+                - Identify the weakest areas (lowest scores or highest weighted areas with poor performance).
+                - Suggest specific, practical study activities (e.g., "Review textbook chapters X-Y", "Complete 5 practice problems on [topic]", "Schedule a 30-minute review session with a classmate").
+                - Keep the tone encouraging and supportive.
+                - Format the output using markdown for readability (headings, bullet points).
+            `;
+
+            const result = await callGeminiAPI(prompt);
+            document.getElementById('gemini-spinner').style.display = 'none';
+            document.getElementById('gemini-content').textContent = result;
+        }
+
+        window.getPerformanceInsights = async function(semesterId) {
+            const semester = state.semesters[semesterId];
+            if (!semester) return;
+
+            openModal('gemini-modal');
+            document.getElementById('gemini-modal-title').textContent = `✨ Performance Insights for ${semester.name}`;
+            document.getElementById('gemini-spinner').style.display = 'flex';
+            document.getElementById('gemini-content').innerHTML = '';
+
+            const semesterCourses = Object.values(state.courses).filter(c => c.semesterId === semesterId);
+            const { courseGrades } = calculateGrades();
+            
+            let performanceDetails = "";
+             if (semesterCourses.length === 0) {
+                performanceDetails = "There are no courses in this semester to analyze.";
+            } else {
+                semesterCourses.forEach(course => {
+                    const grade = courseGrades[course.id];
+                    performanceDetails += `- ${course.name}: ${grade !== null ? grade.toFixed(1) + '%' : 'Not yet graded'}\n`;
+                });
+            }
+
+            const prompt = `
+                You are a positive and insightful academic coach AI. Here is a student's performance for the semester "${semester.name}":
+                ${performanceDetails}
+
+                Please provide a brief, encouraging summary of their performance so far.
+                - Start with a positive observation.
+                - Highlight their strongest course(s).
+                - Gently point out the course(s) that might need more attention, framing it as an opportunity for growth.
+                - Offer one general, actionable study tip that could benefit them across all courses.
+                - Keep the entire summary to a single, concise paragraph.
+            `;
+            
+            const result = await callGeminiAPI(prompt);
+            document.getElementById('gemini-spinner').style.display = 'none';
+            document.getElementById('gemini-content').textContent = result;
+        }
+
+
+        // --- Grade Calculation Logic ---
+        function calculateGrades() {
+            let allCourseGrades = [];
+
+            // 1. Calculate bin averages
+            const binAverages = {};
+            for (const binId in state.bins) {
+                const relevantParts = Object.values(state.parts).filter(p => p.binId === binId);
+                const totalScore = relevantParts.reduce((acc, p) => acc + p.score, 0);
+                const totalPossible = relevantParts.reduce((acc, p) => acc + p.total, 0);
+                binAverages[binId] = totalPossible > 0 ? (totalScore / totalPossible) * 100 : null;
+            }
+
+            // 2. Calculate course grades
+            const courseGrades = {};
+            for (const courseId in state.courses) {
+                const relevantBins = Object.values(state.bins).filter(b => b.courseId === courseId);
+                let weightedTotal = 0;
+                let totalWeight = 0;
+                relevantBins.forEach(bin => {
+                    const binAvg = binAverages[bin.id];
+                    if (binAvg !== null) {
+                        weightedTotal += (binAvg / 100) * bin.weight;
+                        totalWeight += bin.weight;
+                    }
+                });
+                const courseGrade = totalWeight > 0 ? (weightedTotal / totalWeight) * 100 : null;
+                courseGrades[courseId] = courseGrade;
+                if(courseGrade !== null) {
+                    allCourseGrades.push(courseGrade);
+                }
+            }
+            
+            // 3. Calculate semester GPAs
+            const semesterGPAs = {};
+             for (const semesterId in state.semesters) {
+                const relevantCourses = Object.values(state.courses).filter(c => c.semesterId === semesterId);
+                const semesterCourseGrades = relevantCourses
+                    .map(c => courseGrades[c.id])
+                    .filter(grade => grade !== null);
+                
+                if (semesterCourseGrades.length > 0) {
+                    const avgGrade = semesterCourseGrades.reduce((a, b) => a + b, 0) / semesterCourseGrades.length;
+                    semesterGPAs[semesterId] = avgGrade;
+                } else {
+                    semesterGPAs[semesterId] = null;
+                }
+            }
+            
+            // 4. Calculate Overall GPA
+            let overallGPA = null;
+            if (allCourseGrades.length > 0) {
+                 const avgGrade = allCourseGrades.reduce((a, b) => a + b, 0) / allCourseGrades.length;
+                 overallGPA = avgGrade;
+            }
+
+
+            return { binAverages, courseGrades, semesterGPAs, overallGPA };
+        }
+
+        // --- Rendering Logic ---
+        function render() {
+            if (!userId) return;
+            semestersContainer.innerHTML = '';
+            
+            const { binAverages, courseGrades, semesterGPAs, overallGPA } = calculateGrades();
+
+             // Update Overall GPA display
+            document.getElementById('overall-gpa').textContent = overallGPA !== null ? `${overallGPA.toFixed(2)}%` : 'N/A';
+
+            const sortedSemesters = Object.values(state.semesters).sort((a,b) => (b.createdAt?.toDate?.() || 0) - (a.createdAt?.toDate?.() || 0));
+
+            if(sortedSemesters.length === 0) {
+                semestersContainer.innerHTML = `<div class="text-center p-8 bg-white rounded-lg shadow-md"><p class="text-gray-500">No semesters added yet. Click 'Add Semester' to get started!</p></div>`;
+                return;
+            }
+
+            for (const semester of sortedSemesters) {
+                const semesterEl = document.createElement('div');
+                semesterEl.className = 'bg-white rounded-lg shadow-md mb-8 p-6';
+                semesterEl.id = `semester-${semester.id}`;
+
+                const semesterGPA = semesterGPAs[semester.id];
+
+                semesterEl.innerHTML = `
+                    <div class="flex justify-between items-center mb-4 flex-wrap gap-2 cursor-pointer" onclick="toggleCollapse('semester-wrapper-${semester.id}', 'semester-icon-${semester.id}')">
+                        <div class="flex items-center gap-3">
+                             <svg id="semester-icon-${semester.id}" class="w-5 h-5 text-gray-600 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                             <h2 class="text-2xl font-bold text-gray-800">${semester.name}</h2>
+                        </div>
+                        <div class="flex items-center space-x-2 sm:space-x-4">
+                             <span class="text-lg font-semibold text-gray-700">GPA: <span class="text-blue-600">${semesterGPA !== null ? semesterGPA.toFixed(2) + '%' : 'N/A'}</span></span>
+                             <button class="text-sm bg-purple-100 text-purple-700 font-semibold py-1 px-3 rounded-lg hover:bg-purple-200" onclick="event.stopPropagation(); getPerformanceInsights('${semester.id}')">✨ Insights</button>
+                             <button class="text-red-500 hover:text-red-700 font-semibold text-sm sm:text-base" onclick="event.stopPropagation(); deleteItem('semester', '${semester.id}')">Delete</button>
+                        </div>
+                    </div>
+                    <div id="semester-wrapper-${semester.id}" class="collapsible-wrapper expanded">
+                        <div class="collapsible-content">
+                            <div class="pt-2 pl-8">
+                                <div id="courses-for-${semester.id}" class="space-y-4"></div>
+                                 <button class="mt-4 bg-blue-500 text-white font-semibold py-2 px-4 rounded-lg text-sm hover:bg-blue-600" onclick="openModal('add-course-modal', {semesterId: '${semester.id}'})">
+                                    Add Course
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                semestersContainer.appendChild(semesterEl);
+
+                const coursesContainer = document.getElementById(`courses-for-${semester.id}`);
+                const semesterCourses = Object.values(state.courses).filter(c => c.semesterId === semester.id);
+                
+                if (semesterCourses.length === 0) {
+                    coursesContainer.innerHTML = `<p class="text-gray-500 italic">No courses in this semester yet.</p>`;
+                }
+
+                for (const course of semesterCourses) {
+                    const courseEl = document.createElement('div');
+                    courseEl.className = 'border border-gray-200 rounded-lg p-4';
+                    courseEl.id = `course-${course.id}`;
+
+                    const courseGrade = courseGrades[course.id];
+                    const courseBins = Object.values(state.bins).filter(b => b.courseId === course.id);
+                    const totalWeight = courseBins.reduce((sum, b) => sum + b.weight, 0);
+
+                    courseEl.innerHTML = `
+                        <div class="flex justify-between items-center flex-wrap gap-2 cursor-pointer" onclick="toggleCollapse('course-wrapper-${course.id}', 'course-icon-${course.id}')">
+                            <div class="flex items-center gap-2">
+                                <svg id="course-icon-${course.id}" class="w-4 h-4 text-gray-500 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                                <h3 class="text-xl font-semibold text-gray-700">${course.name}</h3>
+                            </div>
+                            <div class="flex items-center space-x-2 sm:space-x-3">
+                                 <span class="font-medium text-gray-600">Grade: <span class="font-bold text-lg ${courseGrade !== null && courseGrade < 60 ? 'text-red-500' : 'text-green-600'}">${courseGrade !== null ? courseGrade.toFixed(2) + '%' : 'N/A'}</span></span>
+                                <button class="text-sm bg-indigo-100 text-indigo-700 font-semibold py-1 px-3 rounded-lg hover:bg-indigo-200" onclick="event.stopPropagation(); generateStudyPlan('${course.id}')">✨ Study Plan</button>
+                                <button class="text-red-500 hover:text-red-700 text-sm font-semibold" onclick="event.stopPropagation(); deleteItem('course', '${course.id}')">Delete</button>
+                            </div>
+                        </div>
+                        <div id="course-wrapper-${course.id}" class="collapsible-wrapper expanded">
+                            <div class="collapsible-content">
+                                <div class="pl-6 pt-2">
+                                    <div class="text-sm text-gray-500 my-2">Total Weight Assigned: ${totalWeight}%</div>
+                                    <div id="bins-for-${course.id}" class="mt-4 space-y-3"></div>
+                                    <button class="mt-3 bg-gray-200 text-gray-700 font-semibold py-1 px-3 rounded text-xs hover:bg-gray-300" onclick="openModal('add-bin-modal', {courseId: '${course.id}'})">
+                                       Add Bin
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    coursesContainer.appendChild(courseEl);
+
+                    const binsContainer = document.getElementById(`bins-for-${course.id}`);
+                    
+                     if(courseBins.length === 0) {
+                        binsContainer.innerHTML = `<p class="text-gray-500 italic text-sm">No grading bins added yet.</p>`;
+                    }
+
+                    for (const bin of courseBins) {
+                        const binEl = document.createElement('div');
+                        binEl.className = 'bg-gray-50 p-3 rounded-md';
+                        binEl.id = `bin-${bin.id}`;
+
+                        const binAvg = binAverages[bin.id];
+
+                        binEl.innerHTML = `
+                            <div class="flex justify-between items-center">
+                                <h4 class="font-semibold">${bin.name} (${bin.weight}%)</h4>
+                                <div class="flex items-center space-x-3">
+                                    <span class="text-sm font-medium">Bin Avg: ${binAvg !== null ? binAvg.toFixed(2) + '%' : 'N/A'}</span>
+                                    <button class="text-red-500 hover:text-red-700 text-xs font-semibold" onclick="deleteItem('bin', '${bin.id}')">Delete</button>
+                                </div>
+                            </div>
+                            <div id="parts-for-${bin.id}" class="mt-2 text-sm space-y-1"></div>
+                            <button class="mt-2 bg-white border border-gray-300 text-gray-600 font-semibold py-1 px-2 rounded text-xs hover:bg-gray-100" onclick="openModal('add-part-modal', {binId: '${bin.id}'})">
+                                Add Part
+                            </button>
+                        `;
+                        binsContainer.appendChild(binEl);
+
+                        const partsContainer = document.getElementById(`parts-for-${bin.id}`);
+                        const binParts = Object.values(state.parts).filter(p => p.binId === bin.id);
+
+                        if(binParts.length === 0) {
+                             partsContainer.innerHTML = `<p class="text-gray-500 italic text-xs">No parts added.</p>`;
+                        }
+
+                        for (const part of binParts) {
+                            const partEl = document.createElement('div');
+                            partEl.className = 'flex justify-between items-center';
+                            partEl.id = `part-${part.id}`;
+                            partEl.innerHTML = `
+                                <span>${part.name}</span>
+                                <div class="flex items-center space-x-2">
+                                    <span>${part.score} / ${part.total}</span>
+                                    <button class="text-gray-400 hover:text-red-600 text-xs" onclick="deleteItem('part', '${part.id}')">&times;</button>
+                                </div>
+                            `;
+                            partsContainer.appendChild(partEl);
+                        }
+                    }
+                }
+            }
+        }
+
+
+        // --- Firestore Listeners ---
+        function setupFirestoreListeners() {
+            if (!userId) return;
+
+            const collections = ['semesters', 'courses', 'bins', 'parts'];
+            collections.forEach(coll => {
+                const q = query(collection(db, `artifacts/${appId}/users/${userId}/${coll}`));
+                onSnapshot(q, (querySnapshot) => {
+                    const items = {};
+                    querySnapshot.forEach((doc) => {
+                        items[doc.id] = { id: doc.id, ...doc.data() };
+                    });
+                    state[coll] = items;
+                    render();
+                }, (error) => {
+                    console.error(`Error fetching ${coll}: `, error);
+                });
+            });
+        }
+
+        // --- Authentication ---
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                userId = user.uid;
+                setupFirestoreListeners();
+            } else {
+                try {
+                     const token = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+                     if(token) {
+                        await signInWithCustomToken(auth, token);
+                     } else {
+                        await signInAnonymously(auth);
+                     }
+                } catch (error) {
+                    console.error("Authentication failed:", error);
+                    document.body.innerHTML = "<h1>Authentication failed. Please refresh.</h1>";
+                }
+            }
+            loadingSpinner.style.display = 'none';
+        });
+
+    </script>
+</body>
+</html>
+
