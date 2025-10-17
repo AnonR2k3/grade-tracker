@@ -226,20 +226,15 @@
         import { getFirestore, doc, collection, addDoc, onSnapshot, writeBatch, deleteDoc, getDocs, query, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- Firebase Configuration ---
+        // This is your unique configuration object from your Firebase project.
         const firebaseConfig = {apiKey: "AIzaSyB7KnkqJErKHM23btO4ro9dlVO6bnptOxE",authDomain: "grade-tracker-3cb25.firebaseapp.com",projectId: "grade-tracker-3cb25",storageBucket: "grade-tracker-3cb25.firebasestorage.app",messagingSenderId: "534870140437",appId: "1:534870140437:web:389f5e30c78fdd9f22901c",measurementId: "G-WGHEL3YWBM"};
 
-
-        // Initialize Firebase
-
-        const app = initializeApp(firebaseConfig);
-
-        const analytics = getAnalytics(app);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-grade-tracker';
-        
         // --- Firebase Initialization ---
+        // Initializes the Firebase app and core services.
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-grade-tracker';
 
         let userId = null;
         let state = {
@@ -832,5 +827,3 @@
     </script>
 </body>
 </html>
-
-
