@@ -190,20 +190,6 @@
             </form>
         </div>
     </div>
-
-    <!-- Gemini AI Modal -->
-    <div id="gemini-modal" class="modal">
-        <div class="modal-content">
-            <span class="close-button" onclick="closeModal('gemini-modal')">&times;</span>
-            <h2 id="gemini-modal-title" class="text-2xl font-bold mb-4">✨ AI Assistant</h2>
-            <div id="gemini-modal-body">
-                <div id="gemini-spinner" class="flex justify-center items-center h-32">
-                    <div class="spinner"></div>
-                </div>
-                <div id="gemini-content" class="text-gray-700 whitespace-pre-wrap prose"></div>
-            </div>
-        </div>
-    </div>
     
     <!-- Toast Notification -->
     <div id="toast" class="toast"></div>
@@ -223,18 +209,16 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, collection, addDoc, onSnapshot, writeBatch, deleteDoc, getDocs, query, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, collection, onSnapshot, writeBatch, query, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // --- Firebase Configuration ---
-        // This is your unique configuration object from your Firebase project.
         const firebaseConfig = {apiKey: "AIzaSyB7KnkqJErKHM23btO4ro9dlVO6bnptOxE",authDomain: "grade-tracker-3cb25.firebaseapp.com",projectId: "grade-tracker-3cb25",storageBucket: "grade-tracker-3cb25.firebasestorage.app",messagingSenderId: "534870140437",appId: "1:534870140437:web:389f5e30c78fdd9f22901c",measurementId: "G-WGHEL3YWBM"};
-
+        
         // --- Firebase Initialization ---
-        // Initializes the Firebase app and core services.
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-grade-tracker';
+        const appId = 'default-grade-tracker';
 
         let userId = null;
         let state = {
@@ -247,13 +231,6 @@
         // --- UI Elements ---
         const loadingSpinner = document.getElementById('loading');
         const semestersContainer = document.getElementById('semesters-container');
-
-        // --- Modals ---
-        const addSemesterModal = document.getElementById('add-semester-modal');
-        const addCourseModal = document.getElementById('add-course-modal');
-        const addBinModal = document.getElementById('add-bin-modal');
-        const addPartModal = document.getElementById('add-part-modal');
-        const geminiModal = document.getElementById('gemini-modal');
 
         // --- Forms ---
         const addSemesterForm = document.getElementById('add-semester-form');
@@ -304,11 +281,6 @@
                 if (form) form.reset();
                  const warning = modal.querySelector('.text-red-500');
                 if (warning) warning.classList.add('hidden');
-                
-                if (modalId === 'gemini-modal') {
-                    document.getElementById('gemini-content').textContent = '';
-                    document.getElementById('gemini-spinner').style.display = 'flex';
-                }
             }
         }
         
@@ -452,132 +424,6 @@
             }
         }
 
-        // --- Gemini AI Integration ---
-        const apiKey = ""; 
-
-        async function callGeminiAPI(prompt) {
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
-            const payload = {
-                contents: [{ parts: [{ text: prompt }] }],
-            };
-
-            try {
-                const response = await fetch(apiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-
-                if (!response.ok) {
-                    const errorBody = await response.text();
-                    console.error("API Error Response:", errorBody);
-                    return `Error: Received status ${response.status} from the API.`;
-                }
-
-                const result = await response.json();
-                const candidate = result.candidates?.[0];
-
-                if (candidate && candidate.content?.parts?.[0]?.text) {
-                    return candidate.content.parts[0].text;
-                } else {
-                    console.error("Unexpected API response structure:", JSON.stringify(result, null, 2));
-                    return "Sorry, I couldn't get a response. The API returned an unexpected format.";
-                }
-            } catch (error) {
-                console.error('Error calling Gemini API:', error);
-                return "An error occurred while contacting the AI assistant. Please check the console for details.";
-            }
-        }
-        
-        window.generateStudyPlan = async function(courseId) {
-            const course = state.courses[courseId];
-            if (!course) return;
-
-            openModal('gemini-modal');
-            document.getElementById('gemini-modal-title').textContent = `✨ Study Plan for ${course.name}`;
-            document.getElementById('gemini-spinner').style.display = 'flex';
-            document.getElementById('gemini-content').innerHTML = '';
-
-            const courseBins = Object.values(state.bins).filter(b => b.courseId === courseId);
-            let gradeDetails = "";
-            const { binAverages } = calculateGrades();
-
-            if(courseBins.length === 0) {
-                gradeDetails = "No graded items have been entered for this course yet.";
-            } else {
-                 courseBins.forEach(bin => {
-                    gradeDetails += `\n- ${bin.name} (Weight: ${bin.weight}%):`;
-                    const binParts = Object.values(state.parts).filter(p => p.binId === bin.id);
-                    if (binParts.length > 0) {
-                         const binAvg = binAverages[bin.id];
-                         gradeDetails += ` Current Average: ${binAvg !== null ? binAvg.toFixed(1) + '%' : 'N/A'}\n`;
-                         binParts.forEach(part => {
-                             gradeDetails += `  - ${part.name}: ${part.score}/${part.total} (${((part.score/part.total)*100).toFixed(1)}%)\n`;
-                         });
-                    } else {
-                        gradeDetails += " No assignments recorded yet.\n";
-                    }
-                });
-            }
-
-            const prompt = `
-                You are an expert academic advisor AI. A student needs help creating a study plan for their course: "${course.name}".
-
-                Here is their current performance breakdown:
-                ${gradeDetails}
-
-                Based on this information, generate a concise and actionable 1-week study plan to help them improve.
-                - Identify the weakest areas (lowest scores or highest weighted areas with poor performance).
-                - Suggest specific, practical study activities (e.g., "Review textbook chapters X-Y", "Complete 5 practice problems on [topic]", "Schedule a 30-minute review session with a classmate").
-                - Keep the tone encouraging and supportive.
-                - Format the output using markdown for readability (headings, bullet points).
-            `;
-
-            const result = await callGeminiAPI(prompt);
-            document.getElementById('gemini-spinner').style.display = 'none';
-            document.getElementById('gemini-content').textContent = result;
-        }
-
-        window.getPerformanceInsights = async function(semesterId) {
-            const semester = state.semesters[semesterId];
-            if (!semester) return;
-
-            openModal('gemini-modal');
-            document.getElementById('gemini-modal-title').textContent = `✨ Performance Insights for ${semester.name}`;
-            document.getElementById('gemini-spinner').style.display = 'flex';
-            document.getElementById('gemini-content').innerHTML = '';
-
-            const semesterCourses = Object.values(state.courses).filter(c => c.semesterId === semesterId);
-            const { courseGrades } = calculateGrades();
-            
-            let performanceDetails = "";
-             if (semesterCourses.length === 0) {
-                performanceDetails = "There are no courses in this semester to analyze.";
-            } else {
-                semesterCourses.forEach(course => {
-                    const grade = courseGrades[course.id];
-                    performanceDetails += `- ${course.name}: ${grade !== null ? grade.toFixed(1) + '%' : 'Not yet graded'}\n`;
-                });
-            }
-
-            const prompt = `
-                You are a positive and insightful academic coach AI. Here is a student's performance for the semester "${semester.name}":
-                ${performanceDetails}
-
-                Please provide a brief, encouraging summary of their performance so far.
-                - Start with a positive observation.
-                - Highlight their strongest course(s).
-                - Gently point out the course(s) that might need more attention, framing it as an opportunity for growth.
-                - Offer one general, actionable study tip that could benefit them across all courses.
-                - Keep the entire summary to a single, concise paragraph.
-            `;
-            
-            const result = await callGeminiAPI(prompt);
-            document.getElementById('gemini-spinner').style.display = 'none';
-            document.getElementById('gemini-content').textContent = result;
-        }
-
-
         // --- Grade Calculation Logic ---
         function calculateGrades() {
             let allCourseGrades = [];
@@ -634,7 +480,6 @@
                  overallGPA = avgGrade;
             }
 
-
             return { binAverages, courseGrades, semesterGPAs, overallGPA };
         }
 
@@ -670,7 +515,6 @@
                         </div>
                         <div class="flex items-center space-x-2 sm:space-x-4">
                              <span class="text-lg font-semibold text-gray-700">GPA: <span class="text-blue-600">${semesterGPA !== null ? semesterGPA.toFixed(2) + '%' : 'N/A'}</span></span>
-                             <button class="text-sm bg-purple-100 text-purple-700 font-semibold py-1 px-3 rounded-lg hover:bg-purple-200" onclick="event.stopPropagation(); getPerformanceInsights('${semester.id}')">✨ Insights</button>
                              <button class="text-red-500 hover:text-red-700 font-semibold text-sm sm:text-base" onclick="event.stopPropagation(); deleteItem('semester', '${semester.id}')">Delete</button>
                         </div>
                     </div>
@@ -711,7 +555,6 @@
                             </div>
                             <div class="flex items-center space-x-2 sm:space-x-3">
                                  <span class="font-medium text-gray-600">Grade: <span class="font-bold text-lg ${courseGrade !== null && courseGrade < 60 ? 'text-red-500' : 'text-green-600'}">${courseGrade !== null ? courseGrade.toFixed(2) + '%' : 'N/A'}</span></span>
-                                <button class="text-sm bg-indigo-100 text-indigo-700 font-semibold py-1 px-3 rounded-lg hover:bg-indigo-200" onclick="event.stopPropagation(); generateStudyPlan('${course.id}')">✨ Study Plan</button>
                                 <button class="text-red-500 hover:text-red-700 text-sm font-semibold" onclick="event.stopPropagation(); deleteItem('course', '${course.id}')">Delete</button>
                             </div>
                         </div>
@@ -782,7 +625,6 @@
             }
         }
 
-
         // --- Firestore Listeners ---
         function setupFirestoreListeners() {
             if (!userId) return;
@@ -827,3 +669,4 @@
     </script>
 </body>
 </html>
+
